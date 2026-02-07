@@ -1,71 +1,129 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Address Finder</title>
+  <title>Smart Address Finder</title>
   <style>
     body {
       font-family: Arial;
-      max-width: 500px;
+      max-width: 520px;
       margin: 50px auto;
       text-align: center;
     }
     input {
-      width: 90%;
-      padding: 10px;
+      width: 95%;
+      padding: 12px;
       font-size: 16px;
     }
     button {
       padding: 10px 20px;
-      margin-top: 10px;
+      margin-top: 12px;
       font-size: 16px;
       cursor: pointer;
     }
     .result {
       margin-top: 20px;
-      background: #f2f2f2;
+      background: #f3f3f3;
       padding: 15px;
-      border-radius: 5px;
+      border-radius: 6px;
+      text-align: left;
+    }
+    .note {
+      font-size: 13px;
+      color: #555;
+      margin-top: 8px;
     }
   </style>
 </head>
 <body>
 
-  <h2>Find Full Address</h2>
+<h2>Find Full Address</h2>
 
-  <input id="query" placeholder="Type any partial address..." />
+<input id="query" placeholder="Type any partial address (even 2 words)" />
+<br>
+<button onclick="findAddress()">Get Full Address</button>
 
-  <br><br>
+<div id="result" class="result" style="display:none;"></div>
 
-  <button onclick="findAddress()">Get Full Address</button>
+<script>
+function cleanInput(text) {
+  return text
+    .toLowerCase()
+    .replace(/near|opp|opposite|behind|beside|nr|road|rd|street|st/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
-  <div id="result" class="result" style="display:none;"></div>
+async function searchNominatim(q) {
+  const url = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=1&q=${encodeURIComponent(q)}`;
+  const res = await fetch(url);
+  const data = await res.json();
+  return data.length ? data[0].display_name : null;
+}
 
-  <script>
-    async function findAddress() {
-      const q = document.getElementById("query").value;
-      if (!q) return alert("Type something first");
+async function searchPhoton(q) {
+  const url = `https://photon.komoot.io/api/?limit=1&q=${encodeURIComponent(q)}`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if (data.features && data.features.length) {
+    return data.features[0].properties.name + ", " +
+           data.features[0].properties.city + ", " +
+           data.features[0].properties.state + ", " +
+           data.features[0].properties.country;
+  }
+  return null;
+}
 
-      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${q}&limit=1`;
+async function findAddress() {
+  const raw = document.getElementById("query").value;
+  if (!raw) return alert("Type something first");
 
-      const res = await fetch(url);
-      const data = await res.json();
+  const cleaned = cleanInput(raw);
 
-      if (data.length === 0) {
-        alert("No address found");
-        return;
-      }
+  const attempts = [
+    cleaned,
+    cleaned + " india",
+    cleaned + " mumbai",
+    cleaned.split(" ").reverse().join(" ")
+  ];
 
-      document.getElementById("result").style.display = "block";
-      document.getElementById("result").innerHTML = `
-        <b>Full Address:</b><br>
-        ${data[0].display_name}
-        <br><br>
-        <button onclick="navigator.clipboard.writeText('${data[0].display_name}')">
-          Copy Address
-        </button>
-      `;
+  let result = null;
+
+  for (let q of attempts) {
+    result = await searchNominatim(q);
+    if (result) break;
+  }
+
+  if (!result) {
+    for (let q of attempts) {
+      result = await searchPhoton(q);
+      if (result) break;
     }
-  </script>
+  }
+
+  const box = document.getElementById("result");
+  box.style.display = "block";
+
+  if (!result) {
+    box.innerHTML = `
+      <b>No exact address found.</b><br><br>
+      Try adding a nearby landmark or area name.
+    `;
+    return;
+  }
+
+  box.innerHTML = `
+    <b>Best Match:</b><br><br>
+    ${result}
+    <br><br>
+    <button onclick="navigator.clipboard.writeText('${result}')">
+      Copy Address
+    </button>
+    <div class="note">
+      This is the closest match based on public map data. Please verify before use.
+    </div>
+  `;
+}
+</script>
 
 </body>
 </html>
