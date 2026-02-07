@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Address Finder</title>
+  <style>
+    body {
+      font-family: Arial;
+      max-width: 500px;
+      margin: 50px auto;
+      text-align: center;
+    }
+    input {
+      width: 90%;
+      padding: 10px;
+      font-size: 16px;
+    }
+    button {
+      padding: 10px 20px;
+      margin-top: 10px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    .result {
+      margin-top: 20px;
+      background: #f2f2f2;
+      padding: 15px;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Find Full Address</h2>
+
+  <input id="query" placeholder="Type any partial address..." />
+
+  <br><br>
+
+  <button onclick="findAddress()">Get Full Address</button>
+
+  <div id="result" class="result" style="display:none;"></div>
+
+  <script>
+    async function findAddress() {
+      const q = document.getElementById("query").value;
+      if (!q) return alert("Type something first");
+
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${q}&limit=1`;
+
+      const res = await fetch(url);
+      const data = await res.json();
+
+      if (data.length === 0) {
+        alert("No address found");
+        return;
+      }
+
+      document.getElementById("result").style.display = "block";
+      document.getElementById("result").innerHTML = `
+        <b>Full Address:</b><br>
+        ${data[0].display_name}
+        <br><br>
+        <button onclick="navigator.clipboard.writeText('${data[0].display_name}')">
+          Copy Address
+        </button>
+      `;
+    }
+  </script>
+
+</body>
+</html>
