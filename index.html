@@ -5,7 +5,7 @@
   <style>
     body {
       font-family: Arial;
-      max-width: 520px;
+      max-width: 540px;
       margin: 50px auto;
       text-align: center;
     }
@@ -38,13 +38,16 @@
 
 <h2>Find Full Address</h2>
 
-<input id="query" placeholder="Type any partial address (even 2 words)" />
+<input id="query" placeholder="Type any partial address" />
 <br>
 <button onclick="findAddress()">Get Full Address</button>
 
 <div id="result" class="result" style="display:none;"></div>
 
 <script>
+// 🔑 PASTE YOUR FREE OPENROUTER KEY HERE
+const AI_KEY = "PASTE_YOUR_KEY_HERE";
+
 function cleanInput(text) {
   return text
     .toLowerCase()
@@ -53,24 +56,34 @@ function cleanInput(text) {
     .trim();
 }
 
+async function aiRewrite(text) {
+  if (!AI_KEY || AI_KEY.includes("PASTE")) return null;
+
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": "Bearer " + AI_KEY,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: "openai/gpt-3.5-turbo",
+      messages: [{
+        role: "user",
+        content: `Rewrite this into a proper Indian location name: ${text}`
+      }],
+      max_tokens: 40
+    })
+  });
+
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content || null;
+}
+
 async function searchNominatim(q) {
-  const url = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=1&q=${encodeURIComponent(q)}`;
+  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`;
   const res = await fetch(url);
   const data = await res.json();
   return data.length ? data[0].display_name : null;
-}
-
-async function searchPhoton(q) {
-  const url = `https://photon.komoot.io/api/?limit=1&q=${encodeURIComponent(q)}`;
-  const res = await fetch(url);
-  const data = await res.json();
-  if (data.features && data.features.length) {
-    return data.features[0].properties.name + ", " +
-           data.features[0].properties.city + ", " +
-           data.features[0].properties.state + ", " +
-           data.features[0].properties.country;
-  }
-  return null;
 }
 
 async function findAddress() {
@@ -78,25 +91,13 @@ async function findAddress() {
   if (!raw) return alert("Type something first");
 
   const cleaned = cleanInput(raw);
+  let result = await searchNominatim(cleaned);
 
-  const attempts = [
-    cleaned,
-    cleaned + " india",
-    cleaned + " mumbai",
-    cleaned.split(" ").reverse().join(" ")
-  ];
-
-  let result = null;
-
-  for (let q of attempts) {
-    result = await searchNominatim(q);
-    if (result) break;
-  }
-
+  // 🧠 AI RESCUE STEP
   if (!result) {
-    for (let q of attempts) {
-      result = await searchPhoton(q);
-      if (result) break;
+    const rewritten = await aiRewrite(cleaned);
+    if (rewritten) {
+      result = await searchNominatim(rewritten);
     }
   }
 
@@ -105,8 +106,8 @@ async function findAddress() {
 
   if (!result) {
     box.innerHTML = `
-      <b>No exact address found.</b><br><br>
-      Try adding a nearby landmark or area name.
+      <b>Could not confidently find this address.</b><br><br>
+      Try adding a nearby landmark or area.
     `;
     return;
   }
@@ -119,7 +120,7 @@ async function findAddress() {
       Copy Address
     </button>
     <div class="note">
-      This is the closest match based on public map data. Please verify before use.
+      Best possible match based on public data. Please verify.
     </div>
   `;
 }
